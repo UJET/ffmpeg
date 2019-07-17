@@ -382,7 +382,7 @@ RUN \
     LD_LIBRARY_PATH=/usr/local/lib ffmpeg -buildconf
 
 ### Release Stage
-FROM        base AS release
+FROM        base
 MAINTAINER  Julien Rottenberg <julien@rottenberg.info>
 
 CMD         ["--help"]

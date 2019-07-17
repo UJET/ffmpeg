@@ -40,10 +40,10 @@ pipeline {
             steps {
                 echo 'Pushing docker image to the remote repository'
                 script {
-                    image_tag = "${identity.account}.dkr.ecr.${REGION}.amazonaws.com/ffmpeg-static:4.1-alpine"
+                    image_tag = "${identity.account}.dkr.ecr.${REGION}.amazonaws.com/ffmpeg-static"
                     sh ecrLogin()
                     docker.withRegistry("https://${image_tag}") {
-                        docker_image.push("${env.BUILD_ID}")
+                        docker_image.push("4.1-alpine")
                     }
                 }
             }

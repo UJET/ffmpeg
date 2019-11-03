@@ -10,6 +10,12 @@ env:
  - VERSION=snapshot VARIANT=scratch
  - VERSION=snapshot VARIANT=vaapi
  - VERSION=snapshot VARIANT=nvidia
+ - VERSION=4.2 VARIANT=ubuntu
+ - VERSION=4.2 VARIANT=alpine
+ - VERSION=4.2 VARIANT=centos
+ - VERSION=4.2 VARIANT=scratch
+ - VERSION=4.2 VARIANT=vaapi
+ - VERSION=4.2 VARIANT=nvidia
  - VERSION=4.1 VARIANT=ubuntu
  - VERSION=4.1 VARIANT=alpine
  - VERSION=4.1 VARIANT=centos
@@ -74,7 +80,7 @@ before_script:
   - image="ffmpeg:${VERSION}-${VARIANT:-ubuntu}"
 
 script:
-  - docker build -t "${image}" --build-arg MAKEFLAGS="-j$(($(grep -c ^processor /proc/cpuinfo) + 1))" docker-images/${VERSION}/${VARIANT}
+  - docker build -t "${image}" --build-arg MAKEFLAGS="-j$(($(nproc) + 1))" docker-images/${VERSION}/${VARIANT}
   - docker run --rm ${image} -buildconf
 
 after_script:

@@ -1,26 +1,41 @@
 # ffmpeg - http://ffmpeg.org/download.html
 #
-# From https://trac.ffmpeg.org/wiki/CompilationGuide/Centos
+# From https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
 #
 # https://hub.docker.com/r/jrottenberg/ffmpeg/
 #
 #
-FROM    centos:7 AS base
 
-RUN     yum -y install libgomp && \
-        yum clean all;
+FROM    nvidia/cudagl:9.2-devel-ubuntu18.04 AS devel-base
 
-
-FROM        base AS build
-
+ENV	    NVIDIA_DRIVER_CAPABILITIES compat32,compute,video
 WORKDIR     /tmp/workdir
 
-ARG        PKG_CONFIG_PATH=/opt/ffmpeg/lib/pkgconfig
-ARG        LD_LIBRARY_PATH=/opt/ffmpeg/lib
-ARG        PREFIX=/opt/ffmpeg
-ARG        MAKEFLAGS="-j2"
+RUN     apt-get -yqq update && \
+        apt-get install -yq --no-install-recommends ca-certificates expat libgomp1 && \
+        apt-get autoremove -y && \
+        apt-get clean -y
 
-ENV         FFMPEG_VERSION=4.1.4 \
+FROM        nvidia/cudagl:9.2-runtime-ubuntu18.04 AS runtime-base
+
+ENV	    NVIDIA_DRIVER_CAPABILITIES compat32,compute,video
+WORKDIR     /tmp/workdir
+
+RUN     apt-get -yqq update && \
+        apt-get install -yq --no-install-recommends ca-certificates expat libgomp1 libxcb-shape0-dev && \
+        apt-get autoremove -y && \
+        apt-get clean -y
+
+
+FROM  devel-base as build
+
+ENV        NVIDIA_HEADERS_VERSION=8.1.24.9
+ARG        PKG_CONFIG_PATH=/opt/ffmpeg/lib/pkgconfig
+ENV        LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ffmpeg/lib"
+ARG        PREFIX=/opt/ffmpeg
+ARG        MAKEFLAGS="-j12"
+
+ENV         FFMPEG_VERSION=4.2.1 \
             AOM_VERSION=v1.0.0 \
             FDKAAC_VERSION=0.1.5 \
             FONTCONFIG_VERSION=2.12.4 \
@@ -55,27 +70,38 @@ ARG         XVID_SHA256SUM="4e9fd62728885855bc5007fe1be58df42e5e274497591fec3724
 
 
 
-RUN     buildDeps="autoconf \
-                   automake \
-                   bzip2 \
-                   cmake \
-                   expat-devel \
-                   gcc \
-                   gcc-c++ \
-                   git \
-                   gperf \
-                   libtool \
-                   make \
-                   nasm \
-                   perl \
-                   openssl-devel \
-                   tar \
-                   yasm \
-                   which \
-                   zlib-devel" && \
-        echo "${SRC}/lib" > /etc/ld.so.conf.d/libc.conf && \
-        yum --enablerepo=extras install -y epel-release && \
-        yum install -y ${buildDeps}
+RUN      buildDeps="autoconf \
+                    automake \
+                    cmake \
+                    curl \
+                    bzip2 \
+                    libexpat1-dev \
+                    g++ \
+                    gcc \
+                    git \
+                    gperf \
+                    libtool \
+                    make \
+                    nasm \
+                    perl \
+                    pkg-config \
+                    python \
+                    libssl-dev \
+                    yasm \
+                    zlib1g-dev" && \
+        apt-get -yqq update && \
+        apt-get install -yq --no-install-recommends ${buildDeps}
+
+RUN \ 
+	DIR=/tmp/nv-codec-headers && \
+	git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git ${DIR} && \
+	cd ${DIR} && \
+	git checkout n${NVIDIA_HEADERS_VERSION} && \ 
+	sed -i 's@/usr/local@'"$PREFIX"'@' Makefile && \
+	make && \
+	make install  && \
+    rm -rf ${DIR}
+
 ## opencore-amr https://sourceforge.net/projects/opencore-amr/
 RUN \
         DIR=/tmp/opencore-amr && \
@@ -332,6 +358,10 @@ RUN \
         --disable-debug \
         --disable-doc \
         --disable-ffplay \
+     	--enable-cuda \
+        --enable-nvenc \
+        --enable-cuvid \
+        --enable-libnpp \
         --enable-shared \
         --enable-avresample \
         --enable-libopencore-amrnb \
@@ -354,12 +384,12 @@ RUN \
         --enable-openssl \
         --enable-libfdk_aac \
         --enable-libkvazaar \
-        \
+        --enable-libaom --extra-libs=-lpthread \
         --enable-postproc \
         --enable-small \
         --enable-version3 \
-        --extra-cflags="-I${PREFIX}/include" \
-        --extra-ldflags="-L${PREFIX}/lib" \
+        --extra-cflags="-I${PREFIX}/include -I${PREFIX}/include/ffnvcodec -I/usr/local/cuda/include/" \
+        --extra-ldflags="-L${PREFIX}/lib -L/usr/local/cuda/lib64/ -L/usr/local/cuda/lib32/" \
         --extra-libs=-ldl \
         --prefix="${PREFIX}" && \
         make && \
@@ -370,21 +400,26 @@ RUN \
         make qt-faststart && \
         cp qt-faststart ${PREFIX}/bin
 
+## cleanup
 RUN \
-        ldd ${PREFIX}/bin/ffmpeg | grep opt/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} /usr/local/lib64/ && \
+        ldd ${PREFIX}/bin/ffmpeg | grep opt/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} /usr/local/lib/ && \
         cp ${PREFIX}/bin/* /usr/local/bin/ && \
         cp -r ${PREFIX}/share/ffmpeg /usr/local/share/ && \
-        LD_LIBRARY_PATH=/usr/local/lib64 ffmpeg -buildconf
+        LD_LIBRARY_PATH=/usr/local/lib ffmpeg -buildconf
 
-FROM        base
+
+
+FROM        runtime-base AS release
 MAINTAINER  Julien Rottenberg <julien@rottenberg.info>
 
 CMD         ["--help"]
 ENTRYPOINT  ["ffmpeg"]
+ENV         LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/lib"
 
-ENV LD_LIBRARY_PATH=/usr/local/lib64
-
-COPY --from=build /usr/local/ /usr/local/
+COPY --from=build /usr/local/bin /usr/local/bin/
+COPY --from=build /usr/local/share /usr/local/share/
+COPY --from=build /usr/local/lib /usr/local/lib/
 
 # Let's make sure the app built correctly
 # Convenient to verify on https://hub.docker.com/r/jrottenberg/ffmpeg/builds/ console output
+

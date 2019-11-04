@@ -30,7 +30,7 @@ pipeline {
                 echo 'About to build a new docker image for ffmpeg-static'
                 dir ('docker-images') {
                     script {
-                        docker_image = docker.build("ffmpeg-static", "-f 4.1/alpine/Dockerfile .")
+                        docker_image = docker.build("ffmpeg-static", "-f 4.2/alpine/Dockerfile .")
                     }
                 }
             }
@@ -43,7 +43,7 @@ pipeline {
                     image_tag = "${identity.account}.dkr.ecr.${REGION}.amazonaws.com/ffmpeg-static"
                     sh ecrLogin()
                     docker.withRegistry("https://${image_tag}") {
-                        docker_image.push("4.1-alpine")
+                        docker_image.push("4.2-alpine")
                     }
                 }
             }

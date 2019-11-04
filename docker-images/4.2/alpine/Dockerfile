@@ -1,26 +1,24 @@
 # ffmpeg - http://ffmpeg.org/download.html
 #
-# From https://trac.ffmpeg.org/wiki/CompilationGuide/Centos
-#
 # https://hub.docker.com/r/jrottenberg/ffmpeg/
 #
 #
-FROM    centos:7 AS base
 
-RUN     yum -y install libgomp && \
-        yum clean all;
+FROM        alpine:3.8 AS base
+
+RUN     apk  add --no-cache --update libgcc libstdc++ ca-certificates libcrypto1.0 libssl1.0 libgomp expat git
 
 
 FROM        base AS build
 
-WORKDIR     /tmp/workdir
+WORKDIR     ffmpeg_build_tmp
 
 ARG        PKG_CONFIG_PATH=/opt/ffmpeg/lib/pkgconfig
 ARG        LD_LIBRARY_PATH=/opt/ffmpeg/lib
 ARG        PREFIX=/opt/ffmpeg
-ARG        MAKEFLAGS="-j2"
+ARG        MAKEFLAGS="-j8"
 
-ENV         FFMPEG_VERSION=4.1.4 \
+ENV         FFMPEG_VERSION=4.2.1 \
             AOM_VERSION=v1.0.0 \
             FDKAAC_VERSION=0.1.5 \
             FONTCONFIG_VERSION=2.12.4 \
@@ -57,28 +55,30 @@ ARG         XVID_SHA256SUM="4e9fd62728885855bc5007fe1be58df42e5e274497591fec3724
 
 RUN     buildDeps="autoconf \
                    automake \
+                   bash \
+                   binutils \
                    bzip2 \
                    cmake \
-                   expat-devel \
+                   curl \
+                   coreutils \
+                   diffutils \
+                   file \
+                   g++ \
                    gcc \
-                   gcc-c++ \
-                   git \
                    gperf \
                    libtool \
                    make \
-                   nasm \
-                   perl \
-                   openssl-devel \
+                   python \
+                   openssl-dev \
                    tar \
                    yasm \
-                   which \
-                   zlib-devel" && \
-        echo "${SRC}/lib" > /etc/ld.so.conf.d/libc.conf && \
-        yum --enablerepo=extras install -y epel-release && \
-        yum install -y ${buildDeps}
+                   nasm \
+                   zlib-dev \
+                   expat-dev" && \
+        apk  add --no-cache --update ${buildDeps}
 ## opencore-amr https://sourceforge.net/projects/opencore-amr/
 RUN \
-        DIR=/tmp/opencore-amr && \
+        DIR=ffmpeg_build_tmp/opencore-amr && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sL https://versaweb.dl.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-${OPENCOREAMR_VERSION}.tar.gz | \
@@ -89,7 +89,7 @@ RUN \
         rm -rf ${DIR}
 ## x264 http://www.videolan.org/developers/x264.html
 RUN \
-        DIR=/tmp/x264 && \
+        DIR=ffmpeg_build_tmp/x264 && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sL https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-${X264_VERSION}.tar.bz2 | \
@@ -100,7 +100,7 @@ RUN \
         rm -rf ${DIR}
 ### x265 http://x265.org/
 RUN \
-        DIR=/tmp/x265 && \
+        DIR=ffmpeg_build_tmp/x265 && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sL https://download.videolan.org/pub/videolan/x265/x265_${X265_VERSION}.tar.gz  | \
@@ -113,7 +113,7 @@ RUN \
         rm -rf ${DIR}
 ### libogg https://www.xiph.org/ogg/
 RUN \
-        DIR=/tmp/ogg && \
+        DIR=ffmpeg_build_tmp/ogg && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO http://downloads.xiph.org/releases/ogg/libogg-${OGG_VERSION}.tar.gz && \
@@ -125,7 +125,7 @@ RUN \
         rm -rf ${DIR}
 ### libopus https://www.opus-codec.org/
 RUN \
-        DIR=/tmp/opus && \
+        DIR=ffmpeg_build_tmp/opus && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO https://archive.mozilla.org/pub/opus/opus-${OPUS_VERSION}.tar.gz && \
@@ -138,7 +138,7 @@ RUN \
         rm -rf ${DIR}
 ### libvorbis https://xiph.org/vorbis/
 RUN \
-        DIR=/tmp/vorbis && \
+        DIR=ffmpeg_build_tmp/vorbis && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO http://downloads.xiph.org/releases/vorbis/libvorbis-${VORBIS_VERSION}.tar.gz && \
@@ -150,7 +150,7 @@ RUN \
         rm -rf ${DIR}
 ### libtheora http://www.theora.org/
 RUN \
-        DIR=/tmp/theora && \
+        DIR=ffmpeg_build_tmp/theora && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO http://downloads.xiph.org/releases/theora/libtheora-${THEORA_VERSION}.tar.gz && \
@@ -162,7 +162,7 @@ RUN \
         rm -rf ${DIR}
 ### libvpx https://www.webmproject.org/code/
 RUN \
-        DIR=/tmp/vpx && \
+        DIR=ffmpeg_build_tmp/vpx && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sL https://codeload.github.com/webmproject/libvpx/tar.gz/v${VPX_VERSION} | \
@@ -174,7 +174,7 @@ RUN \
         rm -rf ${DIR}
 ### libwebp https://developers.google.com/speed/webp/
 RUN \
-        DIR=/tmp/vebp && \
+        DIR=ffmpeg_build_tmp/vebp && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sL https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${WEBP_VERSION}.tar.gz | \
@@ -185,7 +185,7 @@ RUN \
         rm -rf ${DIR}
 ### libmp3lame http://lame.sourceforge.net/
 RUN \
-        DIR=/tmp/lame && \
+        DIR=ffmpeg_build_tmp/lame && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sL https://versaweb.dl.sourceforge.net/project/lame/lame/$(echo ${LAME_VERSION} | sed -e 's/[^0-9]*\([0-9]*\)[.]\([0-9]*\)[.]\([0-9]*\)\([0-9A-Za-z-]*\)/\1.\2/')/lame-${LAME_VERSION}.tar.gz | \
@@ -196,32 +196,32 @@ RUN \
         rm -rf ${DIR}
 ### xvid https://www.xvid.com/
 RUN \
-        DIR=/tmp/xvid && \
+        DIR=ffmpeg_build_tmp/xvid && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO http://downloads.xvid.org/downloads/xvidcore-${XVID_VERSION}.tar.gz && \
         echo ${XVID_SHA256SUM} | sha256sum --check && \
         tar -zx -f xvidcore-${XVID_VERSION}.tar.gz && \
         cd xvidcore/build/generic && \
-        ./configure --prefix="${PREFIX}" --bindir="${PREFIX}/bin" --datadir="${DIR}" --enable-shared --enable-shared && \
+        ./configure --prefix="${PREFIX}" --bindir="${PREFIX}/bin" --datadir="$(pwd)" --enable-shared && \
         make && \
         make install && \
         rm -rf ${DIR}
 ### fdk-aac https://github.com/mstorsjo/fdk-aac
 RUN \
-        DIR=/tmp/fdk-aac && \
+        DIR=ffmpeg_build_tmp/fdk-aac && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sL https://github.com/mstorsjo/fdk-aac/archive/v${FDKAAC_VERSION}.tar.gz | \
         tar -zx --strip-components=1 && \
         autoreconf -fiv && \
-        ./configure --prefix="${PREFIX}" --enable-shared --datadir="${DIR}" && \
+        ./configure --prefix="${PREFIX}" --enable-shared --datadir="$(pwd)" && \
         make && \
         make install && \
         rm -rf ${DIR}
 ## openjpeg https://github.com/uclouvain/openjpeg
 RUN \
-        DIR=/tmp/openjpeg && \
+        DIR=ffmpeg_build_tmp/openjpeg && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sL https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz | \
@@ -232,7 +232,7 @@ RUN \
         rm -rf ${DIR}
 ## freetype https://www.freetype.org/
 RUN  \
-        DIR=/tmp/freetype && \
+        DIR=ffmpeg_build_tmp/freetype && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.gz && \
@@ -244,7 +244,7 @@ RUN  \
         rm -rf ${DIR}
 ## libvstab https://github.com/georgmartius/vid.stab
 RUN  \
-        DIR=/tmp/vid.stab && \
+        DIR=ffmpeg_build_tmp/vid.stab && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO https://github.com/georgmartius/vid.stab/archive/v${LIBVIDSTAB_VERSION}.tar.gz &&\
@@ -257,7 +257,7 @@ RUN  \
 ## fridibi https://www.fribidi.org/
 # + https://github.com/fribidi/fribidi/issues/8
 RUN  \
-        DIR=/tmp/fribidi && \
+        DIR=ffmpeg_build_tmp/fribidi && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO https://github.com/fribidi/fribidi/archive/${FRIBIDI_VERSION}.tar.gz && \
@@ -271,7 +271,7 @@ RUN  \
         rm -rf ${DIR}
 ## fontconfig https://www.freedesktop.org/wiki/Software/fontconfig/
 RUN  \
-        DIR=/tmp/fontconfig && \
+        DIR=ffmpeg_build_tmp/fontconfig && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.bz2 &&\
@@ -282,7 +282,7 @@ RUN  \
         rm -rf ${DIR}
 ## libass https://github.com/libass/libass
 RUN  \
-        DIR=/tmp/libass && \
+        DIR=ffmpeg_build_tmp/libass && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO https://github.com/libass/libass/archive/${LIBASS_VERSION}.tar.gz &&\
@@ -295,7 +295,7 @@ RUN  \
         rm -rf ${DIR}
 ## kvazaar https://github.com/ultravideo/kvazaar
 RUN \
-        DIR=/tmp/kvazaar && \
+        DIR=ffmpeg_build_tmp/kvazaar && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
         curl -sLO https://github.com/ultravideo/kvazaar/archive/v${KVAZAAR_VERSION}.tar.gz &&\
@@ -307,7 +307,7 @@ RUN \
         rm -rf ${DIR}
 
 RUN \
-	DIR=/tmp/aom && \
+	DIR=ffmpeg_build_tmp/aom && \
         git clone --branch ${AOM_VERSION} --depth 1 https://aomedia.googlesource.com/aom ${DIR} ; \
         cd ${DIR} ; \
         rm -rf CMakeCache.txt CMakeFiles ; \
@@ -320,14 +320,14 @@ RUN \
 
 ## ffmpeg https://ffmpeg.org/
 RUN  \
-        DIR=/tmp/ffmpeg && mkdir -p ${DIR} && cd ${DIR} && \
+        DIR=ffmpeg_build_tmp/ffmpeg && mkdir -p ${DIR} && cd ${DIR} && \
         curl -sLO https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
         tar -jx --strip-components=1 -f ffmpeg-${FFMPEG_VERSION}.tar.bz2
 
 
 
 RUN \
-        DIR=/tmp/ffmpeg && mkdir -p ${DIR} && cd ${DIR} && \
+        DIR=ffmpeg_build_tmp/ffmpeg && mkdir -p ${DIR} && cd ${DIR} && \
         ./configure \
         --disable-debug \
         --disable-doc \
@@ -354,7 +354,7 @@ RUN \
         --enable-openssl \
         --enable-libfdk_aac \
         --enable-libkvazaar \
-        \
+        --enable-libaom --extra-libs=-lpthread \
         --enable-postproc \
         --enable-small \
         --enable-version3 \
@@ -370,21 +370,21 @@ RUN \
         make qt-faststart && \
         cp qt-faststart ${PREFIX}/bin
 
-RUN \
-        ldd ${PREFIX}/bin/ffmpeg | grep opt/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} /usr/local/lib64/ && \
-        cp ${PREFIX}/bin/* /usr/local/bin/ && \
-        cp -r ${PREFIX}/share/ffmpeg /usr/local/share/ && \
-        LD_LIBRARY_PATH=/usr/local/lib64 ffmpeg -buildconf
 
-FROM        base
+RUN \
+    ldd ${PREFIX}/bin/ffmpeg | grep opt/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} /usr/local/lib/ && \
+    cp ${PREFIX}/bin/* /usr/local/bin/ && \
+    cp -r ${PREFIX}/share/ffmpeg /usr/local/share/ && \
+    LD_LIBRARY_PATH=/usr/local/lib ffmpeg -buildconf
+
+### Release Stage
+FROM        base AS release
 MAINTAINER  Julien Rottenberg <julien@rottenberg.info>
 
 CMD         ["--help"]
 ENTRYPOINT  ["ffmpeg"]
 
-ENV LD_LIBRARY_PATH=/usr/local/lib64
-
-COPY --from=build /usr/local/ /usr/local/
+COPY --from=build /usr/local /usr/local
 
 # Let's make sure the app built correctly
 # Convenient to verify on https://hub.docker.com/r/jrottenberg/ffmpeg/builds/ console output

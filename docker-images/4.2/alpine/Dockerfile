@@ -203,7 +203,7 @@ RUN \
         echo ${XVID_SHA256SUM} | sha256sum --check && \
         tar -zx -f xvidcore-${XVID_VERSION}.tar.gz && \
         cd xvidcore/build/generic && \
-        ./configure --prefix="${PREFIX}" --bindir="${PREFIX}/bin" --datadir="${DIR}" --enable-shared --enable-shared && \
+        ./configure --prefix="${PREFIX}" --bindir="${PREFIX}/bin" --datadir="$(pwd)" --enable-shared && \
         make && \
         make install && \
         rm -rf ${DIR}
@@ -215,7 +215,7 @@ RUN \
         curl -sL https://github.com/mstorsjo/fdk-aac/archive/v${FDKAAC_VERSION}.tar.gz | \
         tar -zx --strip-components=1 && \
         autoreconf -fiv && \
-        ./configure --prefix="${PREFIX}" --enable-shared --datadir="${DIR}" && \
+        ./configure --prefix="${PREFIX}" --enable-shared --datadir="$(pwd)" && \
         make && \
         make install && \
         rm -rf ${DIR}

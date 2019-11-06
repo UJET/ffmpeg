@@ -1,0 +1,75 @@
+import groovy.json.JsonOutput;
+
+def account_id = "039155354934"
+def region = "us-west-2"
+def image_name = "ffmpeg-static"
+def dockerfile = "4.2/alpine/Dockerfile"
+def docker_image
+
+pipeline {
+  agent any
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Build Image') {
+      steps {
+        dir ('docker-images') {
+          script {
+            sh ecrLogin()
+            docker_image = docker.build(image_name, " -f ${dockerfile} .")
+          }
+        }
+      }
+    }
+
+    stage('Push Image') {
+      steps {
+        echo 'Pushing docker image to the remote repository'
+        script {
+          sh ecrLogin()
+          repo = "https://${account_id}.dkr.ecr.${region}.amazonaws.com/${image_name}"
+
+          metadata_build_job  = "${env.JOB_NAME}"
+          metadata_invoked_by = "${env.BUILD_USER_ID}"
+          metadata_branch     = "${env.GIT_BRANCH}"
+          metadata_builder    = sh(script: 'whoami', returnStdout: true).trim()
+          metadata_build_id   = "${env.BUILD_ID}"
+          metadata_gch        = "gch-" + sh(
+                                script: 'git --no-pager rev-parse --short HEAD',
+                                returnStdout: true).trim()
+
+          writeFile(file: 'metadata.json',
+                    text: JsonOutput.prettyPrint(JsonOutput.toJson([
+                            metadata_build_job: metadata_build_job,
+                            metadata_invoked_by: metadata_invoked_by,
+                            metadata_branch: metadata_branch,
+                            metadata_builder: metadata_builder,
+                            metadata_build_id: metadata_build_id,
+                            metadata_gch: metadata_gch])))
+
+          docker.withRegistry(repo) {
+            docker_image.push(metadata_build_id)
+            docker_image.push(metadata_gch)
+            docker_image.push("latest")
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'metadata.json', fingerprint: true
+      deleteDir()
+    }
+    success { echo 'Build succeeded!'; }
+    failure { echo 'Build failed!'; }
+  }
+}
+
+// vim: syntax=groovy :
